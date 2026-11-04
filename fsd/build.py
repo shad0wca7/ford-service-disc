@@ -735,7 +735,7 @@ def build_browse(books, out, title, log, clean):
         entries = []
         filenames = {n.casefold(): n for n in os.listdir(book.dir)}
 
-        def local_link(match):
+        def local_link(match, filenames=filenames):
             attr, quote, value = match.groups()
             if re.match(r'(?i)^(?:[a-z]+:|//|#)', value):
                 return match.group(0)
