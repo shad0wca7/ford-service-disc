@@ -253,3 +253,11 @@ CC0 / public domain.
 disc Windows 11, Ford .ARC file, BAY POD, POD BAY, IDICOMP, Technical Service
 Publications, TSP, EVTM wiring diagram, PCED, volume has expired, extract Ford
 service CD, offline service manual, right to repair.</sub>
+
+### POD BAY v1 recovery (1.1.0)
+
+Mixed-type v1 archives now recover file extensions, reject duplicate filenames,
+and retain unknown types. Older/multi-archive manuals get a complete archive
+browser when the modern viewer layout does not apply. See
+[1.1.0 release notes](docs/RELEASE-1.1.0.md). Please extract into a fresh output
+folder when retesting issue #2; full-disc compatibility remains unverified.

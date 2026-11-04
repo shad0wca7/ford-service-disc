@@ -18,6 +18,12 @@ ENTRY = 16
 V1_HEADER = 13
 V1_ENTRY = 15
 
+# Byte order is the on-disc order, confirmed by issue #2's type survey.
+V1_TYPES = {
+    '62c6': 'GIF', '6a13': 'HTM', '94cc': 'PDF', '588e': 'EPL',
+    'bc22': 'WCF', 'a88a': 'SWF', 'c348': 'XML',
+}
+
 
 class ArcError(Exception):
     pass
@@ -103,7 +109,9 @@ class Archive:
             record_at = i * V1_ENTRY
             raw_name = table[record_at:record_at + 8]
             data_offset = struct.unpack_from('<I', table, record_at + 8)[0]
-            records.append((_decode_v1_name(raw_name), data_offset))
+            marker = raw_name[6:8].hex()
+            extension = V1_TYPES.get(marker, marker)
+            records.append((_decode_v1_name(raw_name) + '.' + extension, data_offset))
 
         for record_name, data_offset in records:
             if not table_end <= data_offset <= archive_size:

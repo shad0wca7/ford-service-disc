@@ -200,14 +200,14 @@ class TestArchive(unittest.TestCase):
         f = io.BytesIO(make_v1_arc(files))
         a = Archive(f)
         self.assertEqual(a.version, 1)
-        self.assertEqual([e.name for e in a], ['A0_ONE', 'T50T100A'])
+        self.assertEqual([e.name for e in a], ['A0_ONE.GIF', 'T50T100A.GIF'])
         self.assertEqual(
             [(e.offset, e.length) for e in a],
             [(43, len(files['A0_ONE'])),
              (43 + len(files['A0_ONE']), len(files['T50T100A']))],
         )
-        self.assertEqual(a.read(a.find('A0_ONE')), b'first')
-        self.assertEqual(a.read(a.find('T50T100A')), b'second')
+        self.assertEqual(a.read(a.find('A0_ONE.GIF')), b'first')
+        self.assertEqual(a.read(a.find('T50T100A.GIF')), b'second')
 
     def test_pod_bay_v1_rejects_truncated_record_table(self):
         import io
