@@ -1,13 +1,23 @@
-# Ford "BAY POD" and IDICOMP — format specification
+# Ford POD archives and IDICOMP — format specification
 
 Ford's Technical Service Publications discs store their content in two
-undocumented formats: an archive container whose magic bytes are `BAY POD`,
-and an LZ77 compression variant identified by the string `IDICOMP`.
+undocumented formats: a POD archive container whose known magic bytes are
+`BAY POD` and `POD BAY`, and an LZ77 compression variant identified by the
+string `IDICOMP`.
 
-Neither appears to have been documented publicly before. Everything below was
-worked out by inspecting a disc I own (2020 Mustang, volume `20SLB`) and is
-implemented in `fsd/arc.py` and `fsd/idicomp.py`. It decodes all 10,230 files
-on that disc with every integrity check passing.
+The `BAY POD` version 2 layout and IDICOMP details below were worked out by
+inspecting a disc I own (2020 Mustang, volume `20SLB`). This implementation
+decodes all 10,230 files on that disc with every integrity check passing.
+
+The `POD BAY` version 1 layout is based on the public, MIT-licensed
+[`darrenadixonpi/pod-bay`](https://github.com/darrenadixonpi/pod-bay) parser.
+The MIT-licensed
+[`John-MustangGT/ford-workshop-manual-tools`](https://github.com/John-MustangGT/ford-workshop-manual-tools)
+independently confirms the v1 signature and IDICOMP payload behavior, although
+its fallback scanner does not preserve record names. Issue #2 confirms that a
+reported February 2004 disc uses the v1 signature, but its only full-disc run
+so far used the earlier, incorrect same-layout parser. The corrected parser is
+covered synthetically here and still needs reporter validation on that disc.
 
 > **This document is dedicated to the public domain under
 > [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).**
@@ -35,12 +45,14 @@ sector, dropping sync, header and ECC. Sectors of 2448 bytes (with subchannel
 data) and MODE2/FORM1 (user data at offset 24) also occur. Detect the layout
 by looking for `\x01CD001` at sector 16 for each candidate stride.
 
-## 2. Archive container: `BAY POD`
+## 2. POD archive containers
+
+### `BAY POD` version 2
 
 ```
 offset  size    field
 0       7       "BAY POD"
-7       1       version (2 on every disc seen)
+7       1       version, 2
 8       1       reserved, 0
 9       4       u32   entry count
 13      4       u32   name-table size in bytes
@@ -61,9 +73,42 @@ Each 16-byte entry, all little-endian:
 Names are NUL-terminated 8.3 uppercase strings — flat, with no directories.
 Payloads follow the name table and are IDICOMP-compressed.
 
+### `POD BAY` version 1
+
+Version 1 has a different header and record layout:
+
+```
+offset  size    field
+0       7       "POD BAY"
+7       2       version marker, 01 00
+9       4       u32   entry count
+13      n*15    record table
+...             entry payloads
+```
+
+Each 15-byte record:
+
+```
+0       8       packed name
+8       4       u32   absolute payload offset
+12      3       metadata
+```
+
+The first six bytes of the name pack eight 6-bit symbols, most-significant
+first. Symbol 0 is padding, 1–10 are `0`–`9`, 11–36 are `A`–`Z`, and 37 is
+underscore. The trailing two bytes are a type marker and carry no name data;
+the public archives examined by the reference parser use `62 c6`. The decoded
+value is a filename stem of at most eight characters.
+
+Version 1 records carry no payload length. A record's payload ends at the next
+record's absolute offset, or at EOF for the final record. Offsets before the
+end of the record table, beyond EOF, or descending relative to the next record
+are invalid. Payloads remain the IDICOMP chunk streams described below.
+
 ### The `.epl` manifest
 
-Every archive contains one small XML file, `<CODE>.epl`, describing the book:
+Every `BAY POD` version 2 archive examined contains one small XML file,
+`<CODE>.epl`, describing the book:
 
 ```xml
 <workunit>

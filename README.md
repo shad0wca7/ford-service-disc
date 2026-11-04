@@ -32,10 +32,10 @@ that. It reads the content directly off the disc and gives you a static
 website — no installer, no VM, no date checks, no DVD drive needed once you
 have an image.
 
-The content is stored in two undocumented Ford formats, a container called
-**"BAY POD"** and an LZ77 variant called **IDICOMP**. Neither was documented
-anywhere before this project; both are now specified in
-[docs/FORMAT.md](docs/FORMAT.md).
+The content is stored in two undocumented Ford formats: a POD archive
+container with **`BAY POD`** or **`POD BAY`** magic, and an LZ77 variant called
+**IDICOMP**. The formats and the evidence behind each supported version are
+described in [docs/FORMAT.md](docs/FORMAT.md).
 
 ## Quick start
 
@@ -177,12 +177,19 @@ the built site to `/sdcard/FordManual/`, install the APK, done.
 **Tested against one disc so far** — 2020 Mustang (`20SLB`), which carries a
 SERVICE, an EVTM and a PCED book.
 
-Nothing in the tool is specific to that title. It asks each archive's own
-manifest what book it is and derives every filename pattern from that, so
-other discs in the same product line should work. Ford sold these under the
-generic "Technical Service Publications" name for many years and many models,
-and the PCED volume alone covers 23 different vehicles, so the format almost
-certainly spans a large part of the range.
+The archive reader also implements the `POD BAY` version 1 layout documented
+by public MIT-licensed parsers. Synthetic tests cover its packed names,
+absolute offsets, derived payload lengths and IDICOMP decompression. A
+reporter's February 2004 disc confirms that the signature occurs in the wild,
+but that whole disc has not yet been rerun with the corrected parser.
+
+On the fully validated `BAY POD` version 2 path, nothing in the tool is
+specific to that title. It asks each archive's own manifest what book it is
+and derives every filename pattern from that, so other version 2 discs in the
+same product line should work. Ford sold these under the generic "Technical
+Service Publications" name for many years and many models, and the PCED
+volume alone covers 23 different vehicles, so that format almost certainly
+spans a large part of the range.
 
 But "should work" is not "does work". **If you have a disc, please run
 `fsd probe` and [open an issue](../../issues/new?template=disc-report.yml) —
@@ -195,18 +202,18 @@ viewer will skip them and tell you it did.
 ## How it works
 
 ```
-disc ──► BAY POD archive ──► IDICOMP decompression ──► files ──► static site
-         (fsd/arc.py)        (fsd/idicomp.py)                    (fsd/build.py)
+disc ──► POD archive ──► IDICOMP decompression ──► files ──► static site
+         (fsd/arc.py)   (fsd/idicomp.py)                    (fsd/build.py)
 ```
 
 `fsd/iso.py` reads ISO9660 directly out of an image, handling 2048, 2352 and
 2448-byte sectors, so nothing needs mounting.
 
-Both Ford formats were reverse-engineered for this project. The write-up in
-[docs/FORMAT.md](docs/FORMAT.md) is the only specification that exists, and it
-is released into the public domain so anyone can write another implementation.
-The test suite synthesises its own archives and needs no Ford content, so it
-doubles as an executable spec:
+The `BAY POD` version 2 and IDICOMP write-up was reverse-engineered for this
+project; `POD BAY` version 1 support also draws on public MIT-licensed archive
+research. [docs/FORMAT.md](docs/FORMAT.md) distinguishes those evidence
+sources and is released into the public domain. The test suite synthesises its
+own archives and needs no Ford content, so it doubles as an executable spec:
 
 ```bash
 python3 -m unittest discover -s tests -v
@@ -243,6 +250,14 @@ CC0 / public domain.
   internet connection, this one needs a disc.
 
 <sub>Keywords: Ford service manual DVD, Ford workshop manual CD, Ford service
-disc Windows 11, Ford .ARC file, BAY POD, IDICOMP, Technical Service
+disc Windows 11, Ford .ARC file, BAY POD, POD BAY, IDICOMP, Technical Service
 Publications, TSP, EVTM wiring diagram, PCED, volume has expired, extract Ford
 service CD, offline service manual, right to repair.</sub>
+
+### POD BAY v1 recovery (1.1.0)
+
+Mixed-type v1 archives now recover file extensions, reject duplicate filenames,
+and retain unknown types. Older/multi-archive manuals get a complete archive
+browser when the modern viewer layout does not apply. See
+[1.1.0 release notes](docs/RELEASE-1.1.0.md). Please extract into a fresh output
+folder when retesting issue #2; full-disc compatibility remains unverified.

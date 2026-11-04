@@ -18,15 +18,30 @@ of `fsd probe` is all that is needed.
 |---|---|---|---|
 | 2020 Mustang Service Information | `20SLB` | SLB (SERVICE), ELB (EVTM), VL2 (PCED) | Full — 10,230/10,230 entries decode; site builds with 0 broken references |
 
+## `POD BAY` version 1 evidence
+
+Public MIT-licensed archive tools document the distinct v1 record table,
+packed-name encoding, absolute offsets and IDICOMP payloads. This reader has
+synthetic coverage for those behaviors. That is public-source archive-format
+evidence, not a successful full-disc run of this implementation.
+
+Issue #2 reports that a February 2004, 2000–2004 Service Information disc uses
+the `POD BAY` version 1 signature. Its first full-disc probe ran against the
+draft parser that incorrectly reused the v2 table layout; the resulting
+truncated headers, garbage names and short reads exposed that mistake. The
+reporter has not yet rerun the disc with the corrected v1 parser, so it is not
+listed as confirmed.
+
 ## Why other discs are likely to work
 
 The tool does not hardcode anything from the disc above:
 
 - **Archives are found by scanning** for `*.ARC`, not by expecting
   `CONTENT/USENI4/`. Other locales and layouts are fine.
-- **Books identify themselves.** Each archive carries a `<CODE>.epl` manifest
-  giving its type, code and the vehicles it covers, and that is what the tool
-  reads. A disc using different codes needs no changes.
+- **Version 2 books identify themselves.** Each `BAY POD` version 2 archive
+  carries a `<CODE>.epl` manifest giving its type, code and the vehicles it
+  covers, and that is what the tool reads. A version 2 disc using different
+  codes needs no changes.
 - **Filename patterns are derived** from each book's own code, with a fallback
   that detects the shared prefix from the files if the manifest and filenames
   disagree.
@@ -46,8 +61,10 @@ same container is in use right across the range.
   extracts to files normally, but the viewer skips it and says so. If you hit
   one, please report the type — that is exactly the information needed to add
   support.
-- **Only `BAY POD` version 2 has been seen.** The version byte is read and
-  reported by `fsd probe`; a different value is worth an issue.
+- **Only `BAY POD` version 2 has full-disc validation.** `POD BAY` version 1
+  is implemented from the public-source evidence above and synthetic
+  regression tests, but still needs a complete `probe` and site build on a
+  real disc with this parser.
 - **Non-English discs are untested.** Nothing should depend on language, but
   the encoding fallback assumes Windows-1252 where UTF-8 fails, which may be
   wrong for other locales.

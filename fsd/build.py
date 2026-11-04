@@ -12,7 +12,7 @@ Three book types get a purpose-built layout:
     EVTM    -> elb    wiring: cells, sheets, indexes, connector face views
     PCED    -> pced   powertrain/emissions diagnosis: sections, pinpoint tests
 
-Any other type is skipped with a warning rather than half-rendered.
+Unknown types and multi-archive manuals get a content-preserving archive browser.
 """
 import glob
 import html
@@ -24,7 +24,7 @@ import time
 import xml.etree.ElementTree as ET
 from collections import OrderedDict, defaultdict
 
-from .disc import KNOWN_TYPES, books_in_dir
+from .disc import books_in_dir
 
 VIEWER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                       'viewer')
@@ -499,15 +499,13 @@ def build(src, out, title=None, log=print, clean=True):
         raise SystemExit(
             f'No books found in {src}. Expected one subdirectory per extracted '
             'archive — run `fsd extract` first.')
-    by_role = {}
-    for b in books:
-        if not b.role:
-            log(f'  skipping {b.code} ({b.type}): no layout for this book type')
-            continue
-        by_role.setdefault(b.role, b)
-    if not by_role:
-        raise SystemExit('None of the books on this disc are types this tool can '
-                         f'lay out ({", ".join(sorted(KNOWN_TYPES))}).')
+    roles = [b.role for b in books]
+    # Older discs split manuals across many archives, without modern navigation.
+    # Keep every book and its original relative links in a simple browse layout.
+    if None in roles or len(set(roles)) != len(roles):
+        return build_browse(books, out, title or site_title(books, disc_label(src)),
+                            log, clean)
+    by_role = {b.role: b for b in books}
 
     version = str(int(max(os.path.getmtime(os.path.join(r, f))
                           for r, _, fs in os.walk(VIEWER) for f in fs)))
@@ -721,3 +719,58 @@ def build(src, out, title=None, log=print, clean=True):
         if os.path.exists(p):
             log(f'  data/{f}.json  {os.path.getsize(p) / 1e6:.2f} MB')
     return manifest
+
+
+def build_browse(books, out, title, log, clean):
+    """Content-preserving fallback; no original disc scripts are required for navigation."""
+    if clean and os.path.isdir(out):
+        empty_dir(out)
+    os.makedirs(out, exist_ok=True)
+    links = []
+    total = 0
+    for book in books:
+        folder = os.path.basename(book.dir)
+        dest = os.path.join(out, 'content', folder)
+        os.makedirs(dest, exist_ok=True)
+        entries = []
+        filenames = {n.casefold(): n for n in os.listdir(book.dir)}
+
+        def local_link(match, filenames=filenames):
+            attr, quote, value = match.groups()
+            if re.match(r'(?i)^(?:[a-z]+:|//|#)', value):
+                return match.group(0)
+            target, separator, fragment = value.partition('#')
+            actual = filenames.get(target.replace('\\', '/').split('/')[-1].casefold())
+            if actual is None:
+                return match.group(0)
+            return attr + '=' + quote + actual + separator + fragment + quote
+
+        for name in sorted(os.listdir(book.dir)):
+            source = os.path.join(book.dir, name)
+            if not os.path.isfile(source):
+                continue
+            if name.lower().endswith(('.htm', '.html')):
+                text = re.sub(r"(?i)(href|src)\s*=\s*([\"'])(.*?)\2", local_link,
+                              rd_text(source))
+                with open(os.path.join(dest, name), 'w', encoding='utf-8') as fh:
+                    fh.write(text)
+            else:
+                shutil.copyfile(source, os.path.join(dest, name))
+            entries.append('<li><a href="' + html.escape(name, quote=True) + '">' +
+                           html.escape(name) + '</a></li>')
+            total += 1
+        # Separate listing avoids overwriting a disc's own index.html.
+        listing = os.path.join(out, folder + '.html')
+        with open(listing, 'w', encoding='utf-8') as fh:
+            fh.write('<!doctype html><meta charset="utf-8"><title>' +
+                     html.escape(book.describe()) + '</title><h1>' +
+                     html.escape(book.describe()) + '</h1><base href="content/' +
+                     html.escape(folder, quote=True) + '/"><ul>' + ''.join(entries) + '</ul>')
+        links.append('<li><a href="' + html.escape(folder, quote=True) + '.html">' +
+                     html.escape(book.describe()) + '</a></li>')
+    with open(os.path.join(out, 'index.html'), 'w', encoding='utf-8') as fh:
+        fh.write('<!doctype html><meta charset="utf-8"><title>' + html.escape(title) +
+                 '</title><h1>' + html.escape(title) + '</h1><p>Archive browser</p><ul>' +
+                 ''.join(links) + '</ul>')
+    log(f'Archive browser: {len(books)} books, {total} files (original relative links preserved)')
+    return {'books': len(books), 'files': total}

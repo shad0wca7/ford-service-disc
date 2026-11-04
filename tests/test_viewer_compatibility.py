@@ -3,7 +3,6 @@ import re
 import unittest
 from pathlib import Path
 
-
 APP_JS = Path(__file__).resolve().parents[1] / "viewer" / "assets" / "app.js"
 APP_CSS = Path(__file__).resolve().parents[1] / "viewer" / "assets" / "app.css"
 

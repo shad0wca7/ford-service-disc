@@ -1,12 +1,12 @@
 """fsd — read Ford Technical Service Publications discs.
 
-Reverse-engineered readers for the "BAY POD" archive container and the
-IDICOMP compression Ford used on its service manual CDs and DVDs, plus a
-static web viewer to browse the result in a modern browser.
+Reverse-engineered readers for the "BAY POD" and "POD BAY" archive containers
+and the IDICOMP compression Ford used on its service manual CDs and DVDs,
+plus a static web viewer to browse the result in a modern browser.
 
 This package ships no Ford content. Bring your own disc.
 """
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 
 from .arc import ArcError, Archive, open_arc  # noqa: F401
 from .disc import Book, DiscError, open_source  # noqa: F401

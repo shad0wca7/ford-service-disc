@@ -70,15 +70,11 @@ def extract(source, dest, only=None, validate=True, force=False,
             outdir = os.path.join(dest, ref.code)
             os.makedirs(outdir, exist_ok=True)
 
+            seen = set()
             for e in arc:
                 name = safe_name(e.name)
                 if not name:
                     res.failed.append((ref.code, e.name, 'unusable name'))
-                    continue
-                path = os.path.join(outdir, name)
-                if not force and os.path.exists(path) and \
-                        os.path.getsize(path) > 0:
-                    res.skipped += 1
                     continue
                 try:
                     raw = arc.raw(e)
@@ -87,6 +83,36 @@ def extract(source, dest, only=None, validate=True, force=False,
                         if is_compressed(raw) else raw
                 except (LZError, ArcError) as ex:
                     res.failed.append((ref.code, e.name, str(ex)))
+                    continue
+                # Unknown v1 types keep their code unless a clear signature is known.
+                if arc.version == 1 and re.fullmatch(r'[0-9a-f]{4}', e.ext):
+                    head = data[:256].lstrip()
+                    ext = None
+                    for magic, suffix in ((b'GIF8', 'GIF'), (b'\xff\xd8\xff', 'JPG'),
+                                          (b'\x89PNG', 'PNG'), (b'%PDF-', 'PDF'),
+                                          (b'II*\x00', 'TIF'), (b'MM\x00*', 'TIF')):
+                        if head.startswith(magic):
+                            ext = suffix
+                            break
+                    if head.lower().startswith((b'<html', b'<!doctype html')):
+                        ext = 'HTM'
+                    elif head.startswith(b'<?xml'):
+                        ext = 'XML'
+                    if ext:
+                        name = name.rsplit('.', 1)[0] + '.' + ext
+                key = name.casefold()
+                if key in seen:
+                    res.failed.append((ref.code, name, 'duplicate archive filename'))
+                    continue
+                seen.add(key)
+                path = os.path.join(outdir, name)
+                if not force and os.path.exists(path):
+                    with open(path, 'rb') as existing:
+                        identical = existing.read() == data
+                    if identical:
+                        res.skipped += 1
+                    else:
+                        res.failed.append((ref.code, name, 'existing file differs; use --force'))
                     continue
                 with open(path, 'wb') as fh:
                     fh.write(data)
