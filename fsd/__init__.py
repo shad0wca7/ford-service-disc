@@ -6,7 +6,7 @@ plus a static web viewer to browse the result in a modern browser.
 
 This package ships no Ford content. Bring your own disc.
 """
-__version__ = '1.1.0'
+__version__ = '1.1.1'
 
 from .arc import ArcError, Archive, open_arc  # noqa: F401
 from .disc import Book, DiscError, open_source  # noqa: F401
