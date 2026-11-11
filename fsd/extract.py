@@ -59,6 +59,13 @@ def extract(source, dest, only=None, validate=True, force=False,
     if not refs:
         raise ArcError('no .ARC archives found on this disc')
 
+    # One folder can hold several discs, so the same archive code can appear
+    # twice. Give each of those archives its own directory; otherwise the
+    # second one collides with the first and every differing file is reported
+    # as a failure. Order the refs by path so a re-run resumes the same way.
+    refs = sorted(refs, key=lambda r: (r.code, getattr(r, 'path', '')))
+    used_codes = {}
+
     for ref in refs:
         with ref.open() as arc:
             from .disc import book_of
@@ -67,7 +74,10 @@ def extract(source, dest, only=None, validate=True, force=False,
                 res.books.append(book)
             label = book.describe() if book else ref.code
             log(f'  {label}: {len(arc)} entries')
-            outdir = os.path.join(dest, ref.code)
+            n = used_codes.get(ref.code, 0)
+            used_codes[ref.code] = n + 1
+            dirname = ref.code if not n else f'{ref.code}-{n + 1}'
+            outdir = os.path.join(dest, dirname)
             os.makedirs(outdir, exist_ok=True)
 
             seen = set()

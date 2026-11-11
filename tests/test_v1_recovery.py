@@ -66,3 +66,24 @@ class Recovery(unittest.TestCase):
                 self.assertFalse(result.ok)
                 self.assertIn('duplicate', result.failed[0][2])
                 self.assertEqual(result.skipped, 0)
+
+    def test_same_code_on_two_discs_gets_separate_directories(self):
+        """A folder holding two discs repeats archive codes; nothing may collide."""
+        with tempfile.TemporaryDirectory() as root:
+            source, dest = Path(root) / 'source', Path(root) / 'dest'
+            for sub in ('disc1', 'disc2'):
+                (source / sub).mkdir(parents=True)
+            (source / 'disc1' / 'ONE.ARC').write_bytes(mixed([
+                ('SAME', '62c6', b'GIF89a'), ('DIFF', '83dc', b'first')]))
+            (source / 'disc2' / 'ONE.ARC').write_bytes(mixed([
+                ('SAME', '62c6', b'GIF89a'), ('DIFF', '83dc', b'second')]))
+            with open_source(str(source)) as disc:
+                result = extract(disc, str(dest), log=lambda _: None)
+            self.assertTrue(result.ok, result.failed)
+            self.assertEqual(result.files, 4)
+            self.assertEqual((dest / 'ONE' / 'DIFF.83dc').read_bytes(), b'first')
+            self.assertEqual((dest / 'ONE-2' / 'DIFF.83dc').read_bytes(), b'second')
+            with open_source(str(source)) as disc:
+                again = extract(disc, str(dest), log=lambda _: None)
+            self.assertTrue(again.ok, again.failed)
+            self.assertEqual(again.skipped, 4)
