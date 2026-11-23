@@ -68,7 +68,7 @@ def probe(source, sample=SAMPLE, deep=False, seed=0):
                     out['warnings'].append(
                         f'{ref.code}: book type {book.type!r} is not one this '
                         f'tool knows how to lay out ({", ".join(sorted(KNOWN_TYPES))}). '
-                        'Extraction will still work; the viewer will skip it. '
+                        'Extraction will still work; browse it in the generated catalog. '
                         'Please report this type.')
             else:
                 out['warnings'].append(

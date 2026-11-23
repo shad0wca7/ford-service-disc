@@ -23,6 +23,8 @@ import shutil
 import time
 import xml.etree.ElementTree as ET
 from collections import OrderedDict, defaultdict
+from pathlib import Path
+from urllib.parse import quote
 
 from .disc import books_in_dir
 
@@ -457,7 +459,7 @@ def disc_label(src):
     p = os.path.join(src, DISC_JSON)
     if os.path.exists(p):
         try:
-            lab = json.load(open(p, encoding='utf-8')).get('label', '')
+            lab = json.loads(Path(p).read_text(encoding='utf-8')).get('label', '')
             if lab:
                 return lab
         except (OSError, ValueError):
@@ -726,7 +728,19 @@ def build_browse(books, out, title, log, clean):
     if clean and os.path.isdir(out):
         empty_dir(out)
     os.makedirs(out, exist_ok=True)
-    links = []
+    from .extract import DISC_JSON
+    manifest = Path(books[0].dir).parent / DISC_JSON
+    groups = {}
+    if manifest.exists():
+        try:
+            groups = json.loads(manifest.read_text(encoding='utf-8')).get('groups', {})
+        except (ValueError, OSError):
+            pass
+
+    all_books = []
+    catalog = defaultdict(lambda: defaultdict(list))
+    nav = Path(out) / 'catalog'
+    nav.mkdir(exist_ok=True)
     total = 0
     for book in books:
         folder = os.path.basename(book.dir)
@@ -756,21 +770,65 @@ def build_browse(books, out, title, log, clean):
                     fh.write(text)
             else:
                 shutil.copyfile(source, os.path.join(dest, name))
-            entries.append('<li><a href="' + html.escape(name, quote=True) + '">' +
-                           html.escape(name) + '</a></li>')
+            entries.append(('../content/' + quote(folder, safe='') + '/' + quote(name, safe=''),
+                            name))
             total += 1
-        # Separate listing avoids overwriting a disc's own index.html.
-        listing = os.path.join(out, folder + '.html')
-        with open(listing, 'w', encoding='utf-8') as fh:
-            fh.write('<!doctype html><meta charset="utf-8"><title>' +
-                     html.escape(book.describe()) + '</title><h1>' +
-                     html.escape(book.describe()) + '</h1><base href="content/' +
-                     html.escape(folder, quote=True) + '/"><ul>' + ''.join(entries) + '</ul>')
-        links.append('<li><a href="' + html.escape(folder, quote=True) + '.html">' +
-                     html.escape(book.describe()) + '</a></li>')
-    with open(os.path.join(out, 'index.html'), 'w', encoding='utf-8') as fh:
-        fh.write('<!doctype html><meta charset="utf-8"><title>' + html.escape(title) +
-                 '</title><h1>' + html.escape(title) + '</h1><p>Archive browser</p><ul>' +
-                 ''.join(links) + '</ul>')
+        label = ' — '.join(filter(None, [book.title, book.describe()]))
+        group = groups.get(folder) or 'Disc collection'
+        kind = (book.type or 'Other / unidentified').upper()
+        # Lead with readable documents rather than a wall of supporting graphics.
+        entries.sort(key=lambda item: not item[1].lower().endswith(('.html', '.htm', '.pdf')))
+        url = catalog_pages(nav, f'book-{len(all_books) + 1}', label, entries)
+        catalog[group][kind].append((url, label))
+        all_books.append((url, f'{group} — {label}'))
+
+    all_url = catalog_pages(nav, 'all', 'All files by archive', all_books)
+    explanations = {'TSB': 'Technical service bulletins', 'SERVICE': 'Workshop manuals',
+                    'PCED': 'Powertrain and emissions diagnosis', 'EVTM': 'Wiring diagrams',
+                    'RECALL': 'Recall information'}
+    sections = []
+    for number, (group, kinds) in enumerate(sorted(catalog.items())):
+        items = []
+        for idx, (kind, records) in enumerate(sorted(kinds.items())):
+            url = catalog_pages(nav, f'group-{number}-{idx}', f'{group} — {kind}',
+                                sorted(records, key=lambda item: item[1].casefold()))
+            caption = f'{kind} ({len(records)} books)'
+            if kind in explanations:
+                caption += ' — ' + explanations[kind]
+            items.append(anchor('catalog/' + url, caption))
+        sections.append('<h2>' + html.escape(group) + '</h2><ul><li>' +
+                        '</li><li>'.join(items) + '</li></ul>')
+    write_page(Path(out) / 'index.html', title, '<p>Choose a region or disc folder, then a '
+               'manual type.</p>' + ''.join(sections) +
+               '<p>' + anchor('catalog/' + all_url, 'All files by archive') + '</p>')
     log(f'Archive browser: {len(books)} books, {total} files (original relative links preserved)')
     return {'books': len(books), 'files': total}
+
+
+def anchor(url, label):
+    return '<a href="' + html.escape(url, quote=True) + '">' + html.escape(label) + '</a>'
+
+
+def write_page(path, title, body):
+    path.write_text('<!doctype html><html lang="en"><meta charset="utf-8">'
+                    '<meta name="viewport" content="width=device-width,initial-scale=1">'
+                    '<style>body{max-width:62rem;margin:2rem auto;padding:0 1rem;'
+                    'font:1rem/1.6 system-ui}li{margin:.35rem 0}</style>'
+                    '<title>' + html.escape(title) + '</title><h1>' + html.escape(title) +
+                    '</h1>' + body + '</html>', encoding='utf-8')
+
+
+def catalog_pages(nav, stem, title, entries):
+    size = 100
+    pages = max(1, (len(entries) + size - 1) // size)
+    for n in range(pages):
+        links = [anchor('../index.html', 'Home'), f'Page {n + 1} of {pages}']
+        if n:
+            links.append(anchor(f'{stem}-{n}.html', 'Previous'))
+        if n + 1 < pages:
+            links.append(anchor(f'{stem}-{n + 2}.html', 'Next'))
+        rows = ''.join('<li>' + anchor(url, label) + '</li>'
+                       for url, label in entries[n * size:(n + 1) * size])
+        write_page(nav / f'{stem}-{n + 1}.html', title,
+                   '<nav>' + ' · '.join(links) + '</nav><ul>' + rows + '</ul>')
+    return f'{stem}-1.html'
