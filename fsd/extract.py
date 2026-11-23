@@ -50,8 +50,11 @@ def extract(source, dest, only=None, validate=True, force=False,
     os.makedirs(dest, exist_ok=True)
     # Remember which disc this came from: the label is the best name for the
     # site when the books themselves don't identify a single vehicle.
-    with open(os.path.join(dest, DISC_JSON), 'w', encoding='utf-8') as fh:
-        json.dump({'label': source.label, 'source': source.kind}, fh, indent=1)
+    manifest = os.path.join(dest, DISC_JSON)
+    groups = {}
+    if os.path.isfile(manifest):
+        with open(manifest, encoding='utf-8') as fh:
+            groups.update(json.load(fh).get('groups', {}))
     refs = source.archives()
     if only:
         want = {c.upper() for c in only}
@@ -77,6 +80,10 @@ def extract(source, dest, only=None, validate=True, force=False,
             n = used_codes.get(ref.code, 0)
             used_codes[ref.code] = n + 1
             dirname = ref.code if not n else f'{ref.code}-{n + 1}'
+            path = getattr(ref, 'path', '')
+            if path and getattr(source, 'root', None):
+                path = os.path.relpath(path, source.root)
+            groups[dirname] = os.path.dirname(path).strip('/').replace(os.sep, '/')
             outdir = os.path.join(dest, dirname)
             os.makedirs(outdir, exist_ok=True)
 
@@ -130,4 +137,6 @@ def extract(source, dest, only=None, validate=True, force=False,
                 res.bytes += len(data)
                 if on_file:
                     on_file(ref.code, name, len(data))
+    with open(manifest, 'w', encoding='utf-8') as fh:
+        json.dump({'label': source.label, 'source': source.kind, 'groups': groups}, fh)
     return res

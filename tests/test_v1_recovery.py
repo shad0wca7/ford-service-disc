@@ -1,10 +1,12 @@
 """Issue #2: synthetic mixed-type archives through the complete build path."""
 import io
 import os
+import re
 import struct
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import unquote
 
 from test_formats import pack_v1_name, payload
 
@@ -49,7 +51,7 @@ class Recovery(unittest.TestCase):
             build(str(dest), str(site), log=lambda _: None)
             self.assertIn('SAME.GIF', (site / 'content/ONE/SAME.HTM').read_text())
             for code in ('ONE', 'TWO'):
-                self.assertIn(code + '.html', (site / 'index.html').read_text())
+                self.assertIn(code, (site / 'catalog/all-1.html').read_text(encoding='utf-8'))
                 for name in ('SAME.HTM', 'SAME.GIF', 'OTHER.a865', 'SNIFF.PDF'):
                     self.assertTrue((site / 'content' / code / name).exists())
 
@@ -87,3 +89,45 @@ class Recovery(unittest.TestCase):
                 again = extract(disc, str(dest), log=lambda _: None)
             self.assertTrue(again.ok, again.failed)
             self.assertEqual(again.skipped, 4)
+
+            site = Path(root) / 'site'
+            build(str(dest), str(site), log=lambda _: None)
+            home = (site / 'index.html').read_text(encoding='utf-8')
+            self.assertIn('disc1', home)
+            self.assertIn('disc2', home)
+            self.assertNotIn('DIFF.83dc', home)
+            self.assert_reachable(site)
+
+    def assert_reachable(self, site):
+        pending = [site / 'index.html']
+        seen = set()
+        while pending:
+            page = pending.pop().resolve()
+            if page in seen:
+                continue
+            seen.add(page)
+            if (site / 'content') in page.parents:
+                continue
+            for href in re.findall(r'href="([^"]+)"', page.read_text(encoding='utf-8')):
+                target = (page.parent / unquote(href)).resolve()
+                self.assertTrue(target.is_file(), (page, href))
+                pending.append(target)
+        self.assertEqual(seen, {p for p in site.rglob('*') if p.is_file()})
+
+    def test_paginated_catalog_with_metadata_and_reserved_filename(self):
+        with tempfile.TemporaryDirectory() as root:
+            dest, site = Path(root) / 'dest', Path(root) / 'site'
+            for n in range(101):
+                folder = dest / str(n)
+                folder.mkdir(parents=True)
+                (folder / 'info.epl').write_text(
+                    '<book><type>TSB</type><vehicle><year>2001</year>'
+                    '<name>Test Car</name></vehicle></book>')
+                (folder / 'notes #1.pdf').write_bytes(b'test')
+            build(str(dest), str(site), log=lambda _: None)
+            home = (site / 'index.html').read_text(encoding='utf-8')
+            self.assertIn('TSB (101 books)', home)
+            page = (site / 'catalog/group-0-0-1.html').read_text(encoding='utf-8')
+            self.assertIn('Page 1 of 2', page)
+            self.assertIn('2001 Test Car', page)
+            self.assert_reachable(site)

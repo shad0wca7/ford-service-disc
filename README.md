@@ -98,6 +98,16 @@ python3 -m fsd all IMAGE.img -o site
 | `fsd serve site` | Serve a built site over HTTP. |
 | `fsd iso IMAGE out.iso` | Convert a raw dump to a plain ISO, if you want to mount it. |
 
+**Which viewer do I open?** Open the output folder, not the repository's
+`viewer/index.html`: that file is a build template and has no disc data.
+After `python3 -m fsd all /path/to/disc -o site`, run
+`python3 -m fsd serve site` and visit <http://localhost:8848/>.
+Mixed or older discs get a static catalog (also usable by opening
+`site/index.html` directly). Choose the source folder/region and manual
+type, then a book. “All files by archive” includes unclassified material.
+Older extracted folders lack region metadata; rebuild from the disc to recover it.
+
+
 `DISC` can be a mount point (`/Volumes/20SLB`, `D:\`), a folder holding a copy
 of one, or an image file (`.iso`, `.img`, `.bin`).
 
