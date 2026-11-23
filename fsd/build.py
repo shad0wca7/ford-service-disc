@@ -783,13 +783,19 @@ def build_browse(books, out, title, log, clean):
         all_books.append((url, f'{group} — {label}'))
 
     all_url = catalog_pages(nav, 'all', 'All files by archive', all_books)
+    explanations = {'TSB': 'Technical service bulletins', 'SERVICE': 'Workshop manuals',
+                    'PCED': 'Powertrain and emissions diagnosis', 'EVTM': 'Wiring diagrams',
+                    'RECALL': 'Recall information'}
     sections = []
     for number, (group, kinds) in enumerate(sorted(catalog.items())):
         items = []
         for idx, (kind, records) in enumerate(sorted(kinds.items())):
             url = catalog_pages(nav, f'group-{number}-{idx}', f'{group} — {kind}',
                                 sorted(records, key=lambda item: item[1].casefold()))
-            items.append(anchor('catalog/' + url, f'{kind} ({len(records)} books)'))
+            caption = f'{kind} ({len(records)} books)'
+            if kind in explanations:
+                caption += ' — ' + explanations[kind]
+            items.append(anchor('catalog/' + url, caption))
         sections.append('<h2>' + html.escape(group) + '</h2><ul><li>' +
                         '</li><li>'.join(items) + '</li></ul>')
     write_page(Path(out) / 'index.html', title, '<p>Choose a region or disc folder, then a '
@@ -797,6 +803,7 @@ def build_browse(books, out, title, log, clean):
                '<p>' + anchor('catalog/' + all_url, 'All files by archive') + '</p>')
     log(f'Archive browser: {len(books)} books, {total} files (original relative links preserved)')
     return {'books': len(books), 'files': total}
+
 
 def anchor(url, label):
     return '<a href="' + html.escape(url, quote=True) + '">' + html.escape(label) + '</a>'

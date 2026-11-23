@@ -99,6 +99,7 @@ class Recovery(unittest.TestCase):
             self.assert_reachable(site)
 
     def assert_reachable(self, site):
+        site = site.resolve()
         pending = [site / 'index.html']
         seen = set()
         while pending:
